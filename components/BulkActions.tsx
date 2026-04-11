@@ -7,10 +7,10 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { LinkedInIcon } from "@/components/LinkedInIcon";
 import {
   Download,
   Contact,
-  ExternalLink,
   CheckSquare,
   XSquare,
 } from "lucide-react";
@@ -85,7 +85,7 @@ export function BulkActions({
                 />
               }
             >
-              <ExternalLink className="h-4 w-4 mr-1" />
+              <LinkedInIcon className="h-4 w-4 mr-1" />
               Open LinkedIns
             </TooltipTrigger>
             {selectedCount > 10 && (

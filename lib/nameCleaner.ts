@@ -7,6 +7,7 @@ import type { ExtractedName } from "@/types";
 
 /** Noise keywords to filter out (case-insensitive) */
 const NOISE_PATTERNS = [
+  // Organizational / header text
   "university",
   "fraternity",
   "chapter",
@@ -23,35 +24,62 @@ const NOISE_PATTERNS = [
   "semester",
   "member",
   "officers",
+  "executive",
+  "board",
+  "copyright",
+  "all rights",
+  "reserved",
+  "established",
+  "chartered",
+  "brothers",
+  "brotherhood",
+  "tradition",
+  "honor",
+
+  // Greek letters (composite headers often spell these out)
+  "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+  "iota", "kappa", "lambda", "sigma", "omega", "phi", "psi", "chi",
+  "tau", "rho", "omicron", "upsilon", "mu", "nu", "xi", "pi",
+
+  // Fraternity officer positions — these are NOT names
   "president",
   "vice president",
   "secretary",
   "treasurer",
-  "executive",
-  "board",
-  "alpha",
-  "beta",
-  "gamma",
-  "delta",
-  "epsilon",
-  "zeta",
-  "eta",
-  "theta",
-  "iota",
-  "kappa",
-  "lambda",
-  "sigma",
-  "omega",
-  "phi",
-  "psi",
-  "chi",
-  "tau",
-  "rho",
-  "omicron",
-  "upsilon",
-  "copyright",
-  "all rights",
-  "reserved",
+  "social chair",
+  "rush chair",
+  "recruitment chair",
+  "philanthropy chair",
+  "scholarship chair",
+  "historian",
+  "chaplain",
+  "marshal",
+  "sergeant at arms",
+  "sergeant-at-arms",
+  "house manager",
+  "risk manager",
+  "new member educator",
+  "pledge educator",
+  "warden",
+  "herald",
+  "sentinel",
+  "ritualist",
+  "alumni relations",
+  "public relations",
+  "intramural",
+  "athletics chair",
+  "standards board",
+  "judicial board",
+  "corresponding secretary",
+  "recording secretary",
+  "number one",
+  "number two",
+  "number three",
+  "number four",
+  "number five",
+  "eminent",
+  "knight commander",
+  "chapter advisor",
 ];
 
 /**
@@ -112,20 +140,38 @@ function isNoiseLine(line: string): boolean {
 }
 
 /**
- * Check if a line looks like a name (2-3 words, mostly letters).
- * Accepts patterns like "John Smith", "John A. Smith", "Mary-Jane O'Brien".
- * Also accepts looser patterns for OCR output that may have minor artifacts.
+ * Check if a line looks like a real person's name.
+ * Rejects OCR junk like "Sr E--", "—~—", single letters, etc.
  */
 function looksLikeName(line: string): boolean {
-  // Strip common OCR artifacts (stray punctuation, extra spaces)
-  const cleaned = line.replace(/[^A-Za-z\s'.,-]/g, "").trim();
+  // Strip OCR artifacts: dashes, underscores, tildes, special chars
+  const cleaned = line.replace(/[^A-Za-z\s'.]/g, "").trim();
+
+  // If cleaning removed more than 30% of non-space chars, it's probably junk
+  const origChars = line.replace(/\s/g, "").length;
+  const cleanChars = cleaned.replace(/\s/g, "").length;
+  if (origChars > 0 && cleanChars / origChars < 0.7) return false;
+
   const words = cleaned.split(/\s+/).filter((w) => w.length > 0);
 
-  // Must have 2-4 words
-  if (words.length < 2 || words.length > 4) return false;
+  // Must have exactly 2 or 3 words (first + last, or first + middle + last)
+  if (words.length < 2 || words.length > 3) return false;
 
-  // Each word must be mostly letters (allow middle initials like "A.")
-  return words.every((w) => /^[A-Za-z][A-Za-z'.-]*$/.test(w));
+  // First and last word must be at least 2 letters (rejects "E", "Sr", "A")
+  const first = words[0];
+  const last = words[words.length - 1];
+  if (first.replace(/['.]/g, "").length < 2) return false;
+  if (last.replace(/['.]/g, "").length < 2) return false;
+
+  // Middle word (if present) can be a single initial like "A." or "J"
+  // but must be a letter
+  if (words.length === 3) {
+    const mid = words[1];
+    if (!/^[A-Za-z][A-Za-z'.-]*$/.test(mid)) return false;
+  }
+
+  // Each word must be only letters (with optional apostrophe/period)
+  return words.every((w) => /^[A-Za-z][A-Za-z'.]*$/.test(w));
 }
 
 /**

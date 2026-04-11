@@ -331,8 +331,8 @@ function parseSerperResults(results: SerperResult[], name: string): ProfileCandi
     if (r.link.includes("youtube.com") || r.link.includes("pinterest.com")) continue;
 
     const platform = detectPlatform(r.link);
-    // Focus on profile-relevant platforms
-    if (platform === "Other" && !r.link.includes("/people/")) continue;
+    // LinkedIn-only: skip non-LinkedIn results
+    if (platform !== "LinkedIn") continue;
 
     // Deduplicate by base URL
     const baseUrl = r.link.split("?")[0];
@@ -360,7 +360,7 @@ function parseSerperResults(results: SerperResult[], name: string): ProfileCandi
 
 /**
  * Real search provider using Serper.dev via our /api/search proxy.
- * Sends 2 queries per person: LinkedIn-focused + general.
+ * LinkedIn-only: sends 2 queries focused on finding LinkedIn profiles.
  */
 export class SerperSearchProvider implements SearchProvider {
   async searchProfiles(
@@ -370,8 +370,8 @@ export class SerperSearchProvider implements SearchProvider {
     compositeYear?: string
   ): Promise<ProfileCandidate[]> {
     const queries = [
-      `"${name}" "${university}" site:linkedin.com`,
-      `"${name}" "${university}"`,
+      `"${name}" "${university}" site:linkedin.com/in`,
+      `"${name}" "${university}" LinkedIn`,
     ];
 
     const allCandidates: ProfileCandidate[] = [];

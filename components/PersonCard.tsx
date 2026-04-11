@@ -6,21 +6,11 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { LinkedInIcon } from "@/components/LinkedInIcon";
 import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import {
-  Globe,
-  ExternalLink,
   AlertCircle,
   ChevronDown,
   ChevronUp,
-  Camera,
-  Link2,
 } from "lucide-react";
 
 interface PersonCardProps {
@@ -49,31 +39,6 @@ const confidenceColors: Record<string, string> = {
   Medium: "bg-amber-500/15 text-amber-400",
   Low: "bg-red-500/15 text-red-400",
 };
-
-function profileIcon(platform: string) {
-  switch (platform) {
-    case "LinkedIn":
-      return <Globe className="h-4 w-4" />;
-    case "Instagram":
-      return <Camera className="h-4 w-4" />;
-    case "Facebook":
-    case "X":
-      return <Link2 className="h-4 w-4" />;
-    default:
-      return <ExternalLink className="h-4 w-4" />;
-  }
-}
-
-function profileColor(platform: string) {
-  switch (platform) {
-    case "LinkedIn":
-      return "text-blue-400 hover:text-blue-300";
-    case "Instagram":
-      return "text-pink-400 hover:text-pink-300";
-    default:
-      return "text-muted-foreground hover:text-foreground";
-  }
-}
 
 export function PersonCard({ person, onToggleSelect }: PersonCardProps) {
   const [showReasoning, setShowReasoning] = useState(false);
@@ -118,45 +83,27 @@ export function PersonCard({ person, onToggleSelect }: PersonCardProps) {
               </p>
             )}
 
-            {person.company && (
+            {person.company && !person.bestLinkedIn?.headline && (
               <p className="text-sm text-muted-foreground">{person.company}</p>
             )}
 
             {person.noReliableMatch && (
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">No reliable match found</span>
+                <span className="text-sm">No LinkedIn profile found</span>
               </div>
             )}
 
-            {person.profiles.length > 0 && (
-              <div className="flex items-center gap-1">
-                <TooltipProvider>
-                  {person.profiles.map((profile, i) => (
-                    <Tooltip key={i}>
-                      <TooltipTrigger
-                        render={
-                          <a
-                            href={profile.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              "inline-flex items-center justify-center rounded-md p-1.5 transition-colors",
-                              profileColor(profile.platform)
-                            )}
-                          />
-                        }
-                      >
-                        {profileIcon(profile.platform)}
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {profile.platform}
-                        {profile.title ? ` - ${profile.title}` : ""}
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </TooltipProvider>
-              </div>
+            {person.bestLinkedIn && (
+              <a
+                href={person.bestLinkedIn.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[#0A66C2] hover:text-[#004182] transition-colors text-sm"
+              >
+                <LinkedInIcon className="h-4 w-4" />
+                View Profile
+              </a>
             )}
 
             {person.reasoning.length > 0 && (
