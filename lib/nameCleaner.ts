@@ -144,13 +144,14 @@ function isNoiseLine(line: string): boolean {
  * Rejects OCR junk like "Sr E--", "—~—", single letters, etc.
  */
 function looksLikeName(line: string): boolean {
-  // Strip OCR artifacts: dashes, underscores, tildes, special chars
+  // Strip OCR artifacts: &, (), ®, ©, ™, dashes, underscores, tildes, numbers, etc.
   const cleaned = line.replace(/[^A-Za-z\s'.]/g, "").trim();
 
-  // If cleaning removed more than 30% of non-space chars, it's probably junk
+  // If cleaning removed more than 25% of non-space chars, it's OCR junk —
+  // the name probably had weird symbols and should be rejected
   const origChars = line.replace(/\s/g, "").length;
   const cleanChars = cleaned.replace(/\s/g, "").length;
-  if (origChars > 0 && cleanChars / origChars < 0.7) return false;
+  if (origChars > 0 && cleanChars / origChars < 0.75) return false;
 
   const words = cleaned.split(/\s+/).filter((w) => w.length > 0);
 
@@ -172,6 +173,39 @@ function looksLikeName(line: string): boolean {
 
   // Each word must be only letters (with optional apostrophe/period)
   return words.every((w) => /^[A-Za-z][A-Za-z'.]*$/.test(w));
+}
+
+/**
+ * Common female first names to filter out.
+ * Fraternity composites are all-male — any female name detected by OCR
+ * is either misread text or a non-member label on the composite.
+ */
+const FEMALE_NAMES = new Set([
+  "mary", "patricia", "jennifer", "linda", "elizabeth", "barbara", "susan",
+  "jessica", "sarah", "karen", "nancy", "lisa", "betty", "margaret", "sandra",
+  "ashley", "dorothy", "kimberly", "emily", "donna", "michelle", "carol",
+  "amanda", "melissa", "deborah", "stephanie", "rebecca", "sharon", "laura",
+  "cynthia", "kathleen", "amy", "angela", "shirley", "anna", "brenda",
+  "pamela", "emma", "nicole", "helen", "samantha", "katherine", "christine",
+  "debra", "rachel", "carolyn", "janet", "catherine", "maria", "heather",
+  "diane", "ruth", "julie", "olivia", "joyce", "virginia", "victoria",
+  "kelly", "lauren", "christina", "joan", "evelyn", "judith", "megan",
+  "andrea", "cheryl", "hannah", "jacqueline", "martha", "gloria", "teresa",
+  "ann", "sara", "madison", "frances", "kathryn", "janice", "jean",
+  "abigail", "alice", "judy", "sophia", "grace", "denise", "amber",
+  "doris", "marilyn", "danielle", "beverly", "isabella", "theresa", "diana",
+  "natalie", "brittany", "charlotte", "marie", "kayla", "alexis", "lori",
+  "alyssa", "brooke", "allison", "savannah", "sydney", "morgan", "taylor",
+  "mackenzie", "jenna", "tiffany", "courtney", "paige", "claire", "molly",
+  "lily", "haley", "shelby", "leah", "jasmine", "caroline", "gabrielle",
+  "brianna", "bailey", "addison", "eleanor", "natasha", "adriana", "ariana",
+  "vanessa", "alexandra", "cassandra", "tara", "kristen", "lindsey",
+  "chelsea", "erin", "reagan", "sloane", "blair", "kendall", "avery",
+]);
+
+function isFemaleFirstName(name: string): boolean {
+  const firstName = name.split(/\s+/)[0].toLowerCase();
+  return FEMALE_NAMES.has(firstName);
 }
 
 /**
@@ -266,9 +300,12 @@ export function cleanNames(rawText: string): ExtractedName[] {
 
     // Check if the line looks like a name
     if (looksLikeName(trimmed)) {
+      const cleaned = titleCase(trimmed);
+      // Skip female names — fraternity composites are all-male
+      if (isFemaleFirstName(cleaned)) continue;
       candidates.push({
         rawText: trimmed,
-        cleanedName: titleCase(trimmed),
+        cleanedName: cleaned,
         sourceIndex: i,
       });
     }

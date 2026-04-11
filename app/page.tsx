@@ -88,7 +88,7 @@ export default function Home() {
           bestLinkedIn,
           company,
           careerCategory: category,
-          selected: !!bestLinkedIn,
+          selected: false,
           noReliableMatch: profiles.length === 0,
         });
       }
