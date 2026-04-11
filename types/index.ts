@@ -15,13 +15,6 @@ export type CareerCategory =
   | "Other"
   | "Unknown";
 
-export interface UserInput {
-  university: string;
-  fraternity: string;
-  compositeYear?: string;
-  image?: File | null;
-}
-
 export interface ExtractedName {
   id: string;
   rawText: string;
@@ -46,12 +39,8 @@ export interface PersonResult {
   name: string;
   profiles: ProfileCandidate[];
   bestLinkedIn?: ProfileCandidate;
-  bestInstagram?: ProfileCandidate;
   company?: string;
   careerCategory: CareerCategory;
-  confidenceScore: number;
-  confidenceLabel: "High" | "Medium" | "Low";
-  reasoning: string[];
   selected: boolean;
   noReliableMatch: boolean;
 }
@@ -59,8 +48,8 @@ export interface PersonResult {
 export interface ImageQualityMetrics {
   width: number;
   height: number;
-  brightness: number; // 0-255
-  blurScore: number; // higher = sharper
+  brightness: number;
+  blurScore: number;
   megapixels: number;
 }
 
@@ -76,19 +65,11 @@ export interface ImageQualityResult {
   metrics: ImageQualityMetrics;
 }
 
-export type AppStep =
-  | "input"
-  | "quality-check"
-  | "ocr-review"
-  | "searching"
-  | "results";
+export type AppStep = "university" | "camera" | "ocr-review" | "searching" | "results";
 
-// Search provider interface – implement this to plug in a real search API
 export interface SearchProvider {
   searchProfiles(
     name: string,
-    university: string,
-    fraternity: string,
-    compositeYear?: string
+    university: string
   ): Promise<ProfileCandidate[]>;
 }

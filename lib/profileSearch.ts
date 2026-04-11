@@ -160,111 +160,42 @@ function slugify(name: string): string {
 export class MockSearchProvider implements SearchProvider {
   async searchProfiles(
     name: string,
-    university: string,
-    fraternity: string,
-    compositeYear?: string
+    university: string
   ): Promise<ProfileCandidate[]> {
-    // Simulate a short network delay
     await new Promise((resolve) => setTimeout(resolve, 150 + Math.random() * 300));
 
     const seed = hashCode(name);
-    const confidenceBucket = seed % 100;
 
-    // ~15% of names return no good results
-    if (confidenceBucket < 15) {
-      return [];
-    }
+    // ~15% of names return no results
+    if (seed % 100 < 15) return [];
 
-    const profiles: ProfileCandidate[] = [];
     const slug = slugify(name);
-
-    // Determine career category for this mock person
     const categories = Object.keys(HEADLINES_BY_CATEGORY);
     const category = pick(categories, seed);
     const companyPool =
       category === "ib"
-        ? COMPANIES.filter((c) =>
-            ["Goldman Sachs", "Morgan Stanley", "J.P. Morgan", "Evercore", "Lazard", "Centerview Partners", "Moelis & Company"].includes(c)
-          )
+        ? COMPANIES.filter((c) => ["Goldman Sachs", "Morgan Stanley", "J.P. Morgan", "Evercore", "Lazard"].includes(c))
         : category === "pe"
-        ? COMPANIES.filter((c) =>
-            ["KKR", "Blackstone", "Apollo Global Management", "Carlyle Group"].includes(c)
-          )
-        : category === "vc"
-        ? COMPANIES.filter((c) =>
-            ["Andreessen Horowitz", "Sequoia Capital", "Bessemer Venture Partners"].includes(c)
-          )
+        ? COMPANIES.filter((c) => ["KKR", "Blackstone", "Apollo Global Management", "Carlyle Group"].includes(c))
         : category === "consulting"
-        ? COMPANIES.filter((c) =>
-            ["McKinsey & Company", "Boston Consulting Group", "Bain & Company", "Deloitte"].includes(c)
-          )
+        ? COMPANIES.filter((c) => ["McKinsey & Company", "Boston Consulting Group", "Bain & Company", "Deloitte"].includes(c))
         : category === "law"
-        ? COMPANIES.filter((c) =>
-            ["Kirkland & Ellis", "Wachtell Lipton", "Skadden Arps", "Cravath Swaine & Moore"].includes(c)
-          )
-        : category === "medicine"
-        ? COMPANIES.filter((c) =>
-            ["Johns Hopkins Hospital", "Mayo Clinic"].includes(c)
-          )
+        ? COMPANIES.filter((c) => ["Kirkland & Ellis", "Wachtell Lipton", "Skadden Arps"].includes(c))
         : COMPANIES;
 
     const company = pick(companyPool, seed + 1);
-    const headlineTemplates = HEADLINES_BY_CATEGORY[category];
-    const headline = pick(headlineTemplates, seed + 2).replace("{company}", company);
+    const headline = pick(HEADLINES_BY_CATEGORY[category], seed + 2).replace("{company}", company);
     const location = pick(LOCATIONS, seed + 3);
-    const classYear = compositeYear ?? String(2020 + (seed % 6));
 
-    // LinkedIn profile (most people have one)
-    if (confidenceBucket >= 15) {
-      const hasUniMention = confidenceBucket >= 40; // ~60% mention university
-      profiles.push({
-        platform: "LinkedIn",
-        url: `https://www.linkedin.com/in/${slug}-${(seed % 900) + 100}`,
-        title: `${name} - ${headline}`,
-        snippet: hasUniMention
-          ? `${university} alum. ${headline}. ${fraternity} member.`
-          : `${headline}. Based in ${location}.`,
-        company,
-        headline,
-        location,
-        classYear: hasUniMention ? classYear : undefined,
-      });
-    }
-
-    // Instagram profile (~50% have a findable one)
-    if (seed % 2 === 0) {
-      const handle = slug.replace(/-/g, "") + (seed % 100);
-      profiles.push({
-        platform: "Instagram",
-        url: `https://www.instagram.com/${handle}`,
-        title: `@${handle}`,
-        snippet: `${name} | ${university} '${classYear.slice(-2)}`,
-      });
-    }
-
-    // Facebook profile (~30% turn up)
-    if (seed % 3 === 0 && confidenceBucket >= 30) {
-      profiles.push({
-        platform: "Facebook",
-        url: `https://www.facebook.com/${slug}.${seed % 1000}`,
-        title: name,
-        snippet: `${university} - ${fraternity}`,
-        location,
-      });
-    }
-
-    // For medium-confidence results, add some ambiguity
-    if (confidenceBucket >= 15 && confidenceBucket < 40) {
-      // Reduce detail: remove university mentions, class year
-      profiles.forEach((p) => {
-        p.classYear = undefined;
-        if (p.snippet) {
-          p.snippet = p.snippet.replace(university, "").replace(fraternity, "").trim();
-        }
-      });
-    }
-
-    return profiles;
+    return [{
+      platform: "LinkedIn",
+      url: `https://www.linkedin.com/in/${slug}-${(seed % 900) + 100}`,
+      title: `${name} - ${headline}`,
+      snippet: `${university} alum. ${headline}.`,
+      company,
+      headline,
+      location,
+    }];
   }
 }
 
@@ -485,9 +416,7 @@ function deduplicateCandidates(candidates: ProfileCandidate[]): ProfileCandidate
 export class SerperSearchProvider implements SearchProvider {
   async searchProfiles(
     name: string,
-    university: string,
-    fraternity: string,
-    compositeYear?: string
+    university: string
   ): Promise<ProfileCandidate[]> {
     const allCandidates: ProfileCandidate[] = [];
 
@@ -543,11 +472,9 @@ export class SerperSearchProvider implements SearchProvider {
 export async function searchProfilesForName(
   provider: SearchProvider,
   name: string,
-  university: string,
-  fraternity: string,
-  compositeYear?: string
+  university: string
 ): Promise<ProfileCandidate[]> {
-  return provider.searchProfiles(name, university, fraternity, compositeYear);
+  return provider.searchProfiles(name, university);
 }
 
 /**
