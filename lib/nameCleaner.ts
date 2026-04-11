@@ -144,14 +144,11 @@ function isNoiseLine(line: string): boolean {
  * Rejects OCR junk like "Sr E--", "—~—", single letters, etc.
  */
 function looksLikeName(line: string): boolean {
-  // Strip OCR artifacts: &, (), ®, ©, ™, dashes, underscores, tildes, numbers, etc.
-  const cleaned = line.replace(/[^A-Za-z\s'.]/g, "").trim();
+  // Zero tolerance: if ANY weird symbol is present, reject immediately.
+  // Only allow letters, spaces, periods, apostrophes, and hyphens.
+  if (/[^A-Za-z\s'.\-]/.test(line)) return false;
 
-  // If cleaning removed more than 25% of non-space chars, it's OCR junk —
-  // the name probably had weird symbols and should be rejected
-  const origChars = line.replace(/\s/g, "").length;
-  const cleanChars = cleaned.replace(/\s/g, "").length;
-  if (origChars > 0 && cleanChars / origChars < 0.75) return false;
+  const cleaned = line.trim();
 
   const words = cleaned.split(/\s+/).filter((w) => w.length > 0);
 
