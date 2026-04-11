@@ -258,12 +258,12 @@ function parseSerperResults(results: SerperResult[], name: string): ProfileCandi
 
   for (const r of results) {
     if (!r.link) continue;
-    // Skip irrelevant results
-    if (r.link.includes("youtube.com") || r.link.includes("pinterest.com")) continue;
 
-    const platform = detectPlatform(r.link);
-    // LinkedIn-only: skip non-LinkedIn results
-    if (platform !== "LinkedIn") continue;
+    // Only accept direct LinkedIn profile URLs (linkedin.com/in/...)
+    // Skip search pages, company pages, posts, pub pages, etc.
+    if (!r.link.includes("linkedin.com/in/")) continue;
+
+    const platform: ProfileCandidate["platform"] = "LinkedIn";
 
     // Deduplicate by base URL
     const baseUrl = r.link.split("?")[0];
