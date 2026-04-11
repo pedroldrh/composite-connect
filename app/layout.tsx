@@ -25,6 +25,10 @@ export const metadata: Metadata = {
   title: "CompositeConnect",
   description:
     "Upload a fraternity composite, extract names, and discover LinkedIn profiles.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
