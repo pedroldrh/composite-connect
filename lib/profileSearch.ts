@@ -254,43 +254,62 @@ function extractLocation(snippet: string): string | undefined {
 }
 
 /**
- * Common US university keywords for detecting a DIFFERENT university in a profile.
- * We don't need every university — just enough to catch clear mismatches.
+ * Grad school indicators — if a different university appears near these keywords,
+ * it's likely their grad school, NOT their undergrad. Don't reject.
  */
-const UNIVERSITY_KEYWORDS = [
-  "university", "college", "institute of technology", "polytechnic",
-  "school of", "academy",
+const GRAD_SCHOOL_KEYWORDS = [
+  "mba", "jd", "md", "phd", "ph.d", "masters", "master's", "m.s.", "m.a.",
+  "m.b.a.", "law school", "medical school", "business school", "graduate",
+  "school of law", "school of medicine", "school of business",
+  "school of engineering", "doctoral", "resident", "fellow",
 ];
 
 /**
- * Check if a LinkedIn snippet/title mentions a different university than the target.
- * Returns true if the profile clearly attended a DIFFERENT school.
- * Returns false if no university is mentioned or the target university is mentioned.
+ * Check if a LinkedIn snippet/title mentions a different UNDERGRAD university.
+ * Returns true only if a different university is mentioned AND it's clearly
+ * an undergrad context (not grad school).
  *
- * Logic: if the text contains a university-related keyword BUT doesn't contain
- * any part of the target university name, it's probably someone else.
+ * Rules:
+ * - If the target university is mentioned anywhere → keep (good match)
+ * - If a different university is mentioned but near grad school keywords → keep
+ *   (they probably did undergrad at target, grad school elsewhere)
+ * - If a different university is mentioned with undergrad indicators
+ *   (bachelor's, B.A., B.S., class of, alumnus) → reject (wrong person)
+ * - If a different university is mentioned with no context → keep (inconclusive)
  */
 function mentionsDifferentUniversity(text: string, targetUniversity: string): boolean {
   const lower = text.toLowerCase();
   const targetLower = targetUniversity.toLowerCase();
 
-  // Build target fragments to match against (e.g., "Washington and Lee" → ["washington", "lee"])
-  // Filter out common words that could false-match
+  // Build target fragments (e.g., "Washington and Lee" → ["washington", "lee"])
   const skipWords = new Set(["and", "the", "of", "at", "in", "university", "college", "state"]);
   const targetWords = targetLower
     .split(/[\s&]+/)
     .filter((w) => w.length > 2 && !skipWords.has(w));
 
-  // Check if the target university is mentioned
+  // If target university is mentioned → good, keep
   const targetMentioned = targetWords.some((w) => lower.includes(w));
-  if (targetMentioned) return false; // Target uni is mentioned — good match
+  if (targetMentioned) return false;
 
-  // Check if ANY university-like institution is mentioned
-  const hasOtherUni = UNIVERSITY_KEYWORDS.some((kw) => lower.includes(kw));
-  if (!hasOtherUni) return false; // No university mentioned at all — keep (inconclusive)
+  // Check if any university-like keyword exists
+  const uniKeywords = ["university", "college", "institute of technology"];
+  const hasOtherUni = uniKeywords.some((kw) => lower.includes(kw));
+  if (!hasOtherUni) return false; // No university mentioned → inconclusive, keep
 
-  // A university is mentioned but it's not the target — likely wrong person
-  return true;
+  // A different university IS mentioned. Check if it's grad school context.
+  const isGradContext = GRAD_SCHOOL_KEYWORDS.some((kw) => lower.includes(kw));
+  if (isGradContext) return false; // Likely grad school at the other uni → keep
+
+  // Check if it's clearly an undergrad context at the OTHER university
+  const undergradIndicators = [
+    "bachelor", "b.a.", "b.s.", "b.b.a.", "b.sc.", "alumnus", "alumni", "alum",
+    "class of", "undergraduate",
+  ];
+  const isUndergradContext = undergradIndicators.some((kw) => lower.includes(kw));
+  if (isUndergradContext) return true; // Clearly did undergrad elsewhere → reject
+
+  // Different university mentioned but no clear undergrad/grad context → keep (inconclusive)
+  return false;
 }
 
 function parseSerperResults(results: SerperResult[], name: string, compositeYear?: number, university?: string): ProfileCandidate[] {
