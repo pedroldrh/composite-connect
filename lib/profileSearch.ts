@@ -419,54 +419,54 @@ export class SerperSearchProvider implements SearchProvider {
     university: string
   ): Promise<ProfileCandidate[]> {
     const allCandidates: ProfileCandidate[] = [];
+    const parts = name.split(/\s+/);
+    const firstName = parts[0];
+    const lastName = parts[parts.length - 1];
 
-    // --- Round 1a: Precise quoted search (best for common names) ---
-    const preciseQuery = `"${name}" "${university}" site:linkedin.com/in`;
-    const preciseResults = await runSearchQuery(preciseQuery, name);
-    allCandidates.push(...preciseResults);
+    // --- Round 1: Plain Google search — just the name + university ---
+    // This is what a human would do: Google "John Smith Washington and Lee"
+    // and click the first LinkedIn link. Most reliable for unique names.
+    const googleQuery = `${name} ${university}`;
+    const googleResults = await runSearchQuery(googleQuery, name);
+    allCandidates.push(...googleResults);
 
     let deduped = deduplicateCandidates(allCandidates);
     if (deduped.length > 0) return deduped;
 
-    // --- Round 1b: Quoted name + LinkedIn (slightly broader) ---
+    // --- Round 2: LinkedIn-specific search ---
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const quotedQuery = `"${name}" "${university}" LinkedIn`;
-    const quotedResults = await runSearchQuery(quotedQuery, name);
-    allCandidates.push(...quotedResults);
+    const linkedinQuery = `"${name}" "${university}" site:linkedin.com/in`;
+    const linkedinResults = await runSearchQuery(linkedinQuery, name);
+    allCandidates.push(...linkedinResults);
 
     deduped = deduplicateCandidates(allCandidates);
     if (deduped.length > 0) return deduped;
 
-    // --- Round 1c: Unquoted fallback (catches unique names like Spencer Alascio) ---
+    // --- Round 3: Broader LinkedIn search (no site: restriction) ---
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const broadQuery = `${name} ${university} LinkedIn`;
-    const broadResults = await runSearchQuery(broadQuery, name);
-    allCandidates.push(...broadResults);
+    const broaderQuery = `"${name}" "${university}" LinkedIn`;
+    const broaderResults = await runSearchQuery(broaderQuery, name);
+    allCandidates.push(...broaderResults);
 
     deduped = deduplicateCandidates(allCandidates);
     if (deduped.length > 0) return deduped;
 
-    // --- Round 2: Nickname expansions (Matt → Matthew, Tommy → Thomas) ---
-    const parts = name.split(/\s+/);
-    const firstName = parts[0];
-    const lastName = parts[parts.length - 1];
+    // --- Round 4: Nickname expansions (Matt → Matthew, Tommy → Thomas) ---
     const expansions = getNameExpansions(firstName);
 
     for (const formal of expansions) {
       const expandedName = [formal, ...parts.slice(1)].join(" ");
-      const query = `${expandedName} ${university} LinkedIn`;
-      const results = await runSearchQuery(query, expandedName);
-      allCandidates.push(...results);
       await new Promise((resolve) => setTimeout(resolve, 80));
+      const results = await runSearchQuery(`${expandedName} ${university}`, expandedName);
+      allCandidates.push(...results);
 
-      // Stop early if we found something
       deduped = deduplicateCandidates(allCandidates);
       if (deduped.length > 0) return deduped;
     }
 
-    // --- Round 3: Last name + university fallback (for people who go by a different first name) ---
-    const lastNameQuery = `"${lastName}" "${university}" site:linkedin.com/in`;
-    const lastNameResults = await runSearchQuery(lastNameQuery, name);
+    // --- Round 5: Last name + university fallback ---
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const lastNameResults = await runSearchQuery(`"${lastName}" "${university}" site:linkedin.com/in`, name);
     allCandidates.push(...lastNameResults);
 
     return deduplicateCandidates(allCandidates);

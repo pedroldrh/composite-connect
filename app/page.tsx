@@ -7,7 +7,6 @@ import { runOCR } from "@/lib/ocr";
 import { cleanNames } from "@/lib/nameCleaner";
 import { getSearchProvider, searchProfilesForName } from "@/lib/profileSearch";
 import { classifyCareer } from "@/lib/careerClassifier";
-import { getDemoNames, DEMO_UNIVERSITY } from "@/lib/demoData";
 
 import { UniversitySelect } from "@/components/UniversitySelect";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -98,13 +97,6 @@ export default function Home() {
     [university]
   );
 
-  // Demo mode
-  const handleDemo = useCallback(() => {
-    setUniversity(DEMO_UNIVERSITY);
-    setExtractedNames(getDemoNames());
-    setStep("ocr-review");
-  }, []);
-
   // Results actions
   const toggleSelect = useCallback((id: string) => {
     setResults((prev) => prev.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)));
@@ -144,18 +136,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         {/* Step 1: University */}
         {step === "university" && (
-          <div className="w-full space-y-6">
-            <UniversitySelect onSelect={handleUniversitySelect} />
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleDemo}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
-              >
-                Try demo with sample W&L names
-              </button>
-            </div>
-          </div>
+          <UniversitySelect onSelect={handleUniversitySelect} />
         )}
 
         {/* Step 2: Camera */}
