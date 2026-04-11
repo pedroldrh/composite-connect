@@ -70,6 +70,7 @@ export type AppStep = "university" | "camera" | "ocr-review" | "searching" | "re
 export interface SearchProvider {
   searchProfiles(
     name: string,
-    university: string
+    university: string,
+    compositeYear?: number
   ): Promise<ProfileCandidate[]>;
 }

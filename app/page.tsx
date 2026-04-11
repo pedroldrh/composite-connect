@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import type { ExtractedName, PersonResult, AppStep } from "@/types";
 import { analyzeImageQuality } from "@/lib/imageQuality";
 import { runOCR } from "@/lib/ocr";
-import { cleanNames } from "@/lib/nameCleaner";
+import { cleanNames, extractCompositeYear } from "@/lib/nameCleaner";
 import { getSearchProvider, searchProfilesForName } from "@/lib/profileSearch";
 import { classifyCareer } from "@/lib/careerClassifier";
 
@@ -20,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 export default function Home() {
   const [step, setStep] = useState<AppStep>("university");
   const [university, setUniversity] = useState("");
+  const [compositeYear, setCompositeYear] = useState<number | undefined>();
   const [extractedNames, setExtractedNames] = useState<ExtractedName[]>([]);
   const [results, setResults] = useState<PersonResult[]>([]);
 
@@ -47,6 +48,8 @@ export default function Home() {
       try { await analyzeImageQuality(file); } catch { /* ignore */ }
 
       const text = await runOCR(file, (p) => setOcrProgress(p));
+      const year = extractCompositeYear(text);
+      if (year) setCompositeYear(year);
       const names = cleanNames(text);
       setExtractedNames(names);
     } catch {
@@ -74,7 +77,7 @@ export default function Home() {
         setSearchCurrentName(name);
         setSearchCurrent(i);
 
-        const profiles = await searchProfilesForName(provider, name, university);
+        const profiles = await searchProfilesForName(provider, name, university, compositeYear);
         const { category, company } = classifyCareer(profiles);
         const bestLinkedIn = profiles.find((p) => p.platform === "LinkedIn");
 
@@ -94,7 +97,7 @@ export default function Home() {
       setResults(personResults);
       setStep("results");
     },
-    [university]
+    [university, compositeYear]
   );
 
   // Results actions
@@ -127,6 +130,7 @@ export default function Home() {
   const handleStartOver = useCallback(() => {
     setStep("university");
     setUniversity("");
+    setCompositeYear(undefined);
     setExtractedNames([]);
     setResults([]);
   }, []);

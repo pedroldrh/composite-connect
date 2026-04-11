@@ -285,3 +285,37 @@ export function cleanNames(rawText: string): ExtractedName[] {
     sourceIndex: entry.sourceIndex,
   }));
 }
+
+/**
+ * Extract the composite year from OCR text.
+ * Looks for 4-digit years (2000-2099) that appear standalone or in patterns
+ * like "20 18" (OCR often splits the year), "2018", "Class of 2018".
+ * Returns the most likely composite year, or undefined if not found.
+ */
+export function extractCompositeYear(rawText: string): number | undefined {
+  // First try: standard 4-digit year
+  const fourDigit = rawText.match(/\b(20[0-2]\d)\b/g);
+  if (fourDigit && fourDigit.length > 0) {
+    // Pick the most common year found, or the first reasonable one
+    const years = fourDigit.map(Number).filter((y) => y >= 2000 && y <= 2030);
+    if (years.length > 0) {
+      // Count occurrences, return the most frequent
+      const counts: Record<number, number> = {};
+      for (const y of years) counts[y] = (counts[y] ?? 0) + 1;
+      const sorted = Object.entries(counts).sort(([, a], [, b]) => b - a);
+      return Number(sorted[0][0]);
+    }
+  }
+
+  // Second try: OCR often splits "2018" as "20 18" or "20\n18"
+  const splitYear = rawText.match(/20\s*(\d{2})\b/g);
+  if (splitYear) {
+    for (const match of splitYear) {
+      const digits = match.replace(/\s/g, "");
+      const year = parseInt(digits, 10);
+      if (year >= 2000 && year <= 2030) return year;
+    }
+  }
+
+  return undefined;
+}

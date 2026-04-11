@@ -160,7 +160,8 @@ function slugify(name: string): string {
 export class MockSearchProvider implements SearchProvider {
   async searchProfiles(
     name: string,
-    university: string
+    university: string,
+    _compositeYear?: number
   ): Promise<ProfileCandidate[]> {
     await new Promise((resolve) => setTimeout(resolve, 150 + Math.random() * 300));
 
@@ -252,7 +253,7 @@ function extractLocation(snippet: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
-function parseSerperResults(results: SerperResult[], name: string): ProfileCandidate[] {
+function parseSerperResults(results: SerperResult[], name: string, compositeYear?: number): ProfileCandidate[] {
   const candidates: ProfileCandidate[] = [];
   const seenUrls = new Set<string>();
 
@@ -280,9 +281,22 @@ function parseSerperResults(results: SerperResult[], name: string): ProfileCandi
       title: title || undefined,
       snippet: snippet || undefined,
       company: extractCompanyFromSnippet(title, snippet),
-      headline: platform === "LinkedIn" ? extractHeadline(title) : undefined,
+      headline: extractHeadline(title),
       location: extractLocation(snippet),
       classYear: extractClassYear(fullText),
+    });
+  }
+
+  // Year filter: if we know the composite year, reject profiles where the
+  // person's class year is more than 5 years before the composite year.
+  // e.g., composite is 2018 → reject anyone who graduated before 2013.
+  if (compositeYear) {
+    return candidates.filter((c) => {
+      if (!c.classYear) return true; // No year info → keep (don't reject unknowns)
+      const profileYear = parseInt(c.classYear, 10);
+      if (isNaN(profileYear)) return true;
+      // Reject if they graduated more than 5 years before the composite
+      return profileYear >= compositeYear - 5;
     });
   }
 
@@ -379,7 +393,7 @@ function getNameExpansions(firstName: string): string[] {
 }
 
 /** Run a single search query and return parsed LinkedIn candidates */
-async function runSearchQuery(query: string, name: string): Promise<ProfileCandidate[]> {
+async function runSearchQuery(query: string, name: string, compositeYear?: number): Promise<ProfileCandidate[]> {
   try {
     const res = await fetch("/api/search", {
       method: "POST",
@@ -389,7 +403,7 @@ async function runSearchQuery(query: string, name: string): Promise<ProfileCandi
     if (!res.ok) return [];
     const data = await res.json();
     if (data.error && data.results?.length === 0) return [];
-    return parseSerperResults(data.results ?? [], name);
+    return parseSerperResults(data.results ?? [], name, compositeYear);
   } catch {
     return [];
   }
@@ -416,7 +430,8 @@ function deduplicateCandidates(candidates: ProfileCandidate[]): ProfileCandidate
 export class SerperSearchProvider implements SearchProvider {
   async searchProfiles(
     name: string,
-    university: string
+    university: string,
+    compositeYear?: number
   ): Promise<ProfileCandidate[]> {
     const allCandidates: ProfileCandidate[] = [];
     const parts = name.split(/\s+/);
@@ -427,7 +442,7 @@ export class SerperSearchProvider implements SearchProvider {
     // This is what a human would do: Google "John Smith Washington and Lee"
     // and click the first LinkedIn link. Most reliable for unique names.
     const googleQuery = `${name} ${university}`;
-    const googleResults = await runSearchQuery(googleQuery, name);
+    const googleResults = await runSearchQuery(googleQuery, name, compositeYear);
     allCandidates.push(...googleResults);
 
     let deduped = deduplicateCandidates(allCandidates);
@@ -436,7 +451,7 @@ export class SerperSearchProvider implements SearchProvider {
     // --- Round 2: LinkedIn-specific search ---
     await new Promise((resolve) => setTimeout(resolve, 80));
     const linkedinQuery = `"${name}" "${university}" site:linkedin.com/in`;
-    const linkedinResults = await runSearchQuery(linkedinQuery, name);
+    const linkedinResults = await runSearchQuery(linkedinQuery, name, compositeYear);
     allCandidates.push(...linkedinResults);
 
     deduped = deduplicateCandidates(allCandidates);
@@ -445,7 +460,7 @@ export class SerperSearchProvider implements SearchProvider {
     // --- Round 3: Broader LinkedIn search (no site: restriction) ---
     await new Promise((resolve) => setTimeout(resolve, 80));
     const broaderQuery = `"${name}" "${university}" LinkedIn`;
-    const broaderResults = await runSearchQuery(broaderQuery, name);
+    const broaderResults = await runSearchQuery(broaderQuery, name, compositeYear);
     allCandidates.push(...broaderResults);
 
     deduped = deduplicateCandidates(allCandidates);
@@ -457,7 +472,7 @@ export class SerperSearchProvider implements SearchProvider {
     for (const formal of expansions) {
       const expandedName = [formal, ...parts.slice(1)].join(" ");
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const results = await runSearchQuery(`${expandedName} ${university}`, expandedName);
+      const results = await runSearchQuery(`${expandedName} ${university}`, expandedName, compositeYear);
       allCandidates.push(...results);
 
       deduped = deduplicateCandidates(allCandidates);
@@ -466,7 +481,7 @@ export class SerperSearchProvider implements SearchProvider {
 
     // --- Round 5: Last name + university fallback ---
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const lastNameResults = await runSearchQuery(`"${lastName}" "${university}" site:linkedin.com/in`, name);
+    const lastNameResults = await runSearchQuery(`"${lastName}" "${university}" site:linkedin.com/in`, name, compositeYear);
     allCandidates.push(...lastNameResults);
 
     return deduplicateCandidates(allCandidates);
@@ -483,9 +498,10 @@ export class SerperSearchProvider implements SearchProvider {
 export async function searchProfilesForName(
   provider: SearchProvider,
   name: string,
-  university: string
+  university: string,
+  compositeYear?: number
 ): Promise<ProfileCandidate[]> {
-  return provider.searchProfiles(name, university);
+  return provider.searchProfiles(name, university, compositeYear);
 }
 
 /**
