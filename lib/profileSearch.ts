@@ -358,9 +358,129 @@ function parseSerperResults(results: SerperResult[], name: string): ProfileCandi
   return candidates;
 }
 
+// Common nickname → formal name expansions
+const NICKNAME_MAP: Record<string, string[]> = {
+  matt: ["matthew"],
+  tommy: ["thomas"],
+  tom: ["thomas"],
+  mike: ["michael"],
+  mikey: ["michael"],
+  rob: ["robert"],
+  bob: ["robert"],
+  bobby: ["robert"],
+  robby: ["robert"],
+  bill: ["william"],
+  billy: ["william"],
+  will: ["william"],
+  willy: ["william"],
+  liam: ["william"],
+  jim: ["james"],
+  jimmy: ["james"],
+  jamie: ["james"],
+  dan: ["daniel"],
+  danny: ["daniel"],
+  dave: ["david"],
+  chris: ["christopher"],
+  nick: ["nicholas"],
+  nicky: ["nicholas"],
+  rick: ["richard"],
+  dick: ["richard"],
+  rich: ["richard"],
+  jack: ["john", "jackson"],
+  johnny: ["john"],
+  jon: ["jonathan", "john"],
+  ben: ["benjamin"],
+  benny: ["benjamin"],
+  sam: ["samuel", "samantha"],
+  sammy: ["samuel"],
+  joe: ["joseph"],
+  joey: ["joseph"],
+  alex: ["alexander", "alexandra"],
+  al: ["alexander", "albert", "alan"],
+  andy: ["andrew"],
+  drew: ["andrew"],
+  steve: ["steven", "stephen"],
+  pat: ["patrick", "patricia"],
+  ed: ["edward", "edwin"],
+  ted: ["theodore", "edward"],
+  teddy: ["theodore"],
+  charlie: ["charles"],
+  chuck: ["charles"],
+  tony: ["anthony"],
+  jeff: ["jeffrey"],
+  greg: ["gregory"],
+  larry: ["lawrence"],
+  harry: ["harold", "harrison"],
+  hank: ["henry"],
+  hal: ["harold", "henry"],
+  walt: ["walter"],
+  wes: ["wesley"],
+  ken: ["kenneth"],
+  kenny: ["kenneth"],
+  tim: ["timothy"],
+  timmy: ["timothy"],
+  pete: ["peter"],
+  ray: ["raymond"],
+  phil: ["philip"],
+  stu: ["stuart"],
+  zach: ["zachary"],
+  zack: ["zachary"],
+  nate: ["nathan", "nathaniel"],
+  max: ["maxwell", "maximilian"],
+  jake: ["jacob"],
+  josh: ["joshua"],
+  conner: ["connor"],
+  connor: ["conner"],
+  coop: ["cooper"],
+  cam: ["cameron"],
+  ty: ["tyler"],
+  trey: ["william", "charles"], // often a III nickname
+  trip: ["william", "charles"], // often a III nickname
+  chip: ["charles"],
+  hart: ["hartwell", "hartley"],
+  lee: ["robert lee", "william lee"],
+};
+
+/** Get formal name variants for a given first name */
+function getNameExpansions(firstName: string): string[] {
+  const lower = firstName.toLowerCase();
+  return NICKNAME_MAP[lower] ?? [];
+}
+
+/** Run a single search query and return parsed LinkedIn candidates */
+async function runSearchQuery(query: string, name: string): Promise<ProfileCandidate[]> {
+  try {
+    const res = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.error && data.results?.length === 0) return [];
+    return parseSerperResults(data.results ?? [], name);
+  } catch {
+    return [];
+  }
+}
+
+/** Deduplicate candidates by URL */
+function deduplicateCandidates(candidates: ProfileCandidate[]): ProfileCandidate[] {
+  const seen = new Set<string>();
+  return candidates.filter((c) => {
+    const key = c.url.split("?")[0];
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * Real search provider using Serper.dev via our /api/search proxy.
- * LinkedIn-only: sends 2 queries focused on finding LinkedIn profiles.
+ * LinkedIn-only with multi-strategy fallback:
+ * 1. Direct name search (plain Google query — most reliable)
+ * 2. If no LinkedIn found: try nickname → formal name expansions
+ * 3. If still nothing: try last name + university only
  */
 export class SerperSearchProvider implements SearchProvider {
   async searchProfiles(
@@ -369,44 +489,47 @@ export class SerperSearchProvider implements SearchProvider {
     fraternity: string,
     compositeYear?: string
   ): Promise<ProfileCandidate[]> {
-    const queries = [
-      `"${name}" "${university}" site:linkedin.com/in`,
-      `"${name}" "${university}" LinkedIn`,
-    ];
-
     const allCandidates: ProfileCandidate[] = [];
 
-    for (const query of queries) {
-      try {
-        const res = await fetch("/api/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
+    // --- Round 1: Direct search (plain query — this is what works for "Spencer Alascio") ---
+    const round1Queries = [
+      `${name} ${university} LinkedIn`,
+      `"${name}" "${university}" site:linkedin.com/in`,
+    ];
 
-        if (!res.ok) continue;
-
-        const data = await res.json();
-        if (data.error && data.results?.length === 0) continue;
-
-        const parsed = parseSerperResults(data.results ?? [], name);
-        allCandidates.push(...parsed);
-      } catch {
-        // Silently skip failed queries
-      }
-
-      // Small delay between queries to be polite to the API
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    for (const query of round1Queries) {
+      const results = await runSearchQuery(query, name);
+      allCandidates.push(...results);
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
 
-    // Deduplicate across queries
-    const seen = new Set<string>();
-    return allCandidates.filter((c) => {
-      const key = c.url.split("?")[0];
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    let deduped = deduplicateCandidates(allCandidates);
+    if (deduped.length > 0) return deduped;
+
+    // --- Round 2: Nickname expansions (Matt → Matthew, Tommy → Thomas) ---
+    const parts = name.split(/\s+/);
+    const firstName = parts[0];
+    const lastName = parts[parts.length - 1];
+    const expansions = getNameExpansions(firstName);
+
+    for (const formal of expansions) {
+      const expandedName = [formal, ...parts.slice(1)].join(" ");
+      const query = `${expandedName} ${university} LinkedIn`;
+      const results = await runSearchQuery(query, expandedName);
+      allCandidates.push(...results);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      // Stop early if we found something
+      deduped = deduplicateCandidates(allCandidates);
+      if (deduped.length > 0) return deduped;
+    }
+
+    // --- Round 3: Last name + university fallback (for people who go by a different first name) ---
+    const lastNameQuery = `"${lastName}" "${university}" site:linkedin.com/in`;
+    const lastNameResults = await runSearchQuery(lastNameQuery, name);
+    allCandidates.push(...lastNameResults);
+
+    return deduplicateCandidates(allCandidates);
   }
 }
 
