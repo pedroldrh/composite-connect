@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "Upload a fraternity composite, extract names, and discover LinkedIn profiles.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a0a0a",
+    background_color: "#ffffff",
     theme_color: "#0a0a0a",
     orientation: "portrait",
     icons: [
