@@ -420,19 +420,30 @@ export class SerperSearchProvider implements SearchProvider {
   ): Promise<ProfileCandidate[]> {
     const allCandidates: ProfileCandidate[] = [];
 
-    // --- Round 1: Direct search (plain query — this is what works for "Spencer Alascio") ---
-    const round1Queries = [
-      `${name} ${university} LinkedIn`,
-      `"${name}" "${university}" site:linkedin.com/in`,
-    ];
-
-    for (const query of round1Queries) {
-      const results = await runSearchQuery(query, name);
-      allCandidates.push(...results);
-      await new Promise((resolve) => setTimeout(resolve, 80));
-    }
+    // --- Round 1a: Precise quoted search (best for common names) ---
+    const preciseQuery = `"${name}" "${university}" site:linkedin.com/in`;
+    const preciseResults = await runSearchQuery(preciseQuery, name);
+    allCandidates.push(...preciseResults);
 
     let deduped = deduplicateCandidates(allCandidates);
+    if (deduped.length > 0) return deduped;
+
+    // --- Round 1b: Quoted name + LinkedIn (slightly broader) ---
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const quotedQuery = `"${name}" "${university}" LinkedIn`;
+    const quotedResults = await runSearchQuery(quotedQuery, name);
+    allCandidates.push(...quotedResults);
+
+    deduped = deduplicateCandidates(allCandidates);
+    if (deduped.length > 0) return deduped;
+
+    // --- Round 1c: Unquoted fallback (catches unique names like Spencer Alascio) ---
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const broadQuery = `${name} ${university} LinkedIn`;
+    const broadResults = await runSearchQuery(broadQuery, name);
+    allCandidates.push(...broadResults);
+
+    deduped = deduplicateCandidates(allCandidates);
     if (deduped.length > 0) return deduped;
 
     // --- Round 2: Nickname expansions (Matt → Matthew, Tommy → Thomas) ---
