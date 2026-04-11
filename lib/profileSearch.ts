@@ -253,7 +253,47 @@ function extractLocation(snippet: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
-function parseSerperResults(results: SerperResult[], name: string, compositeYear?: number): ProfileCandidate[] {
+/**
+ * Common US university keywords for detecting a DIFFERENT university in a profile.
+ * We don't need every university — just enough to catch clear mismatches.
+ */
+const UNIVERSITY_KEYWORDS = [
+  "university", "college", "institute of technology", "polytechnic",
+  "school of", "academy",
+];
+
+/**
+ * Check if a LinkedIn snippet/title mentions a different university than the target.
+ * Returns true if the profile clearly attended a DIFFERENT school.
+ * Returns false if no university is mentioned or the target university is mentioned.
+ *
+ * Logic: if the text contains a university-related keyword BUT doesn't contain
+ * any part of the target university name, it's probably someone else.
+ */
+function mentionsDifferentUniversity(text: string, targetUniversity: string): boolean {
+  const lower = text.toLowerCase();
+  const targetLower = targetUniversity.toLowerCase();
+
+  // Build target fragments to match against (e.g., "Washington and Lee" → ["washington", "lee"])
+  // Filter out common words that could false-match
+  const skipWords = new Set(["and", "the", "of", "at", "in", "university", "college", "state"]);
+  const targetWords = targetLower
+    .split(/[\s&]+/)
+    .filter((w) => w.length > 2 && !skipWords.has(w));
+
+  // Check if the target university is mentioned
+  const targetMentioned = targetWords.some((w) => lower.includes(w));
+  if (targetMentioned) return false; // Target uni is mentioned — good match
+
+  // Check if ANY university-like institution is mentioned
+  const hasOtherUni = UNIVERSITY_KEYWORDS.some((kw) => lower.includes(kw));
+  if (!hasOtherUni) return false; // No university mentioned at all — keep (inconclusive)
+
+  // A university is mentioned but it's not the target — likely wrong person
+  return true;
+}
+
+function parseSerperResults(results: SerperResult[], name: string, compositeYear?: number, university?: string): ProfileCandidate[] {
   const candidates: ProfileCandidate[] = [];
   const seenUrls = new Set<string>();
 
@@ -287,20 +327,29 @@ function parseSerperResults(results: SerperResult[], name: string, compositeYear
     });
   }
 
-  // Year filter: if we know the composite year, reject profiles where the
-  // person's class year is more than 5 years before the composite year.
-  // e.g., composite is 2018 → reject anyone who graduated before 2013.
+  let filtered = candidates;
+
+  // Year filter: reject profiles where class year is 5+ years before composite
   if (compositeYear) {
-    return candidates.filter((c) => {
-      if (!c.classYear) return true; // No year info → keep (don't reject unknowns)
+    filtered = filtered.filter((c) => {
+      if (!c.classYear) return true;
       const profileYear = parseInt(c.classYear, 10);
       if (isNaN(profileYear)) return true;
-      // Reject if they graduated more than 5 years before the composite
       return profileYear >= compositeYear - 5;
     });
   }
 
-  return candidates;
+  // University filter: reject profiles that clearly attended a different university.
+  // If no university is mentioned in the snippet, keep (inconclusive).
+  // Only reject when a DIFFERENT university is explicitly mentioned.
+  if (university) {
+    filtered = filtered.filter((c) => {
+      const text = `${c.title ?? ""} ${c.snippet ?? ""} ${c.headline ?? ""}`;
+      return !mentionsDifferentUniversity(text, university);
+    });
+  }
+
+  return filtered;
 }
 
 // Common nickname → formal name expansions
@@ -393,7 +442,7 @@ function getNameExpansions(firstName: string): string[] {
 }
 
 /** Run a single search query and return parsed LinkedIn candidates */
-async function runSearchQuery(query: string, name: string, compositeYear?: number): Promise<ProfileCandidate[]> {
+async function runSearchQuery(query: string, name: string, compositeYear?: number, university?: string): Promise<ProfileCandidate[]> {
   try {
     const res = await fetch("/api/search", {
       method: "POST",
@@ -403,7 +452,7 @@ async function runSearchQuery(query: string, name: string, compositeYear?: numbe
     if (!res.ok) return [];
     const data = await res.json();
     if (data.error && data.results?.length === 0) return [];
-    return parseSerperResults(data.results ?? [], name, compositeYear);
+    return parseSerperResults(data.results ?? [], name, compositeYear, university);
   } catch {
     return [];
   }
@@ -442,7 +491,7 @@ export class SerperSearchProvider implements SearchProvider {
     // This is what a human would do: Google "John Smith Washington and Lee"
     // and click the first LinkedIn link. Most reliable for unique names.
     const googleQuery = `${name} ${university}`;
-    const googleResults = await runSearchQuery(googleQuery, name, compositeYear);
+    const googleResults = await runSearchQuery(googleQuery, name, compositeYear, university);
     allCandidates.push(...googleResults);
 
     let deduped = deduplicateCandidates(allCandidates);
@@ -451,7 +500,7 @@ export class SerperSearchProvider implements SearchProvider {
     // --- Round 2: LinkedIn-specific search ---
     await new Promise((resolve) => setTimeout(resolve, 80));
     const linkedinQuery = `"${name}" "${university}" site:linkedin.com/in`;
-    const linkedinResults = await runSearchQuery(linkedinQuery, name, compositeYear);
+    const linkedinResults = await runSearchQuery(linkedinQuery, name, compositeYear, university);
     allCandidates.push(...linkedinResults);
 
     deduped = deduplicateCandidates(allCandidates);
@@ -460,7 +509,7 @@ export class SerperSearchProvider implements SearchProvider {
     // --- Round 3: Broader LinkedIn search (no site: restriction) ---
     await new Promise((resolve) => setTimeout(resolve, 80));
     const broaderQuery = `"${name}" "${university}" LinkedIn`;
-    const broaderResults = await runSearchQuery(broaderQuery, name, compositeYear);
+    const broaderResults = await runSearchQuery(broaderQuery, name, compositeYear, university);
     allCandidates.push(...broaderResults);
 
     deduped = deduplicateCandidates(allCandidates);
@@ -472,7 +521,7 @@ export class SerperSearchProvider implements SearchProvider {
     for (const formal of expansions) {
       const expandedName = [formal, ...parts.slice(1)].join(" ");
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const results = await runSearchQuery(`${expandedName} ${university}`, expandedName, compositeYear);
+      const results = await runSearchQuery(`${expandedName} ${university}`, expandedName, compositeYear, university);
       allCandidates.push(...results);
 
       deduped = deduplicateCandidates(allCandidates);
@@ -481,7 +530,7 @@ export class SerperSearchProvider implements SearchProvider {
 
     // --- Round 5: Last name + university fallback ---
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const lastNameResults = await runSearchQuery(`"${lastName}" "${university}" site:linkedin.com/in`, name, compositeYear);
+    const lastNameResults = await runSearchQuery(`"${lastName}" "${university}" site:linkedin.com/in`, name, compositeYear, university);
     allCandidates.push(...lastNameResults);
 
     return deduplicateCandidates(allCandidates);
