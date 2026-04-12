@@ -43,33 +43,30 @@ export function CameraCapture({
         </div>
 
         {/* Capture area */}
-        <div
-          className={cn(
-            "relative mx-auto w-full overflow-hidden rounded-xl",
-            !preview && "border-2 border-dashed border-muted-foreground/30 bg-muted/20"
-          )}
-          style={{ aspectRatio: "3/4" }}
-        >
-          {preview ? (
+        {preview ? (
+          <div className="w-full overflow-hidden rounded-xl bg-muted/10">
             <img
               src={preview}
               alt="Composite preview"
-              className="h-full w-full object-cover"
+              className="w-full h-auto rounded-xl"
             />
-          ) : (
+          </div>
+        ) : (
+          <div
+            className="relative mx-auto w-full overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/20"
+            style={{ aspectRatio: "4/3" }}
+          >
             <div className="absolute inset-0 flex items-center justify-center">
-              {/* Corner brackets */}
               <div className="absolute left-4 top-4 h-8 w-8 border-l-2 border-t-2 border-muted-foreground/50" />
               <div className="absolute right-4 top-4 h-8 w-8 border-r-2 border-t-2 border-muted-foreground/50" />
               <div className="absolute bottom-4 left-4 h-8 w-8 border-b-2 border-l-2 border-muted-foreground/50" />
               <div className="absolute bottom-4 right-4 h-8 w-8 border-b-2 border-r-2 border-muted-foreground/50" />
-
               <p className="px-8 text-center text-sm text-muted-foreground">
                 Point camera at the composite
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="flex gap-3">
