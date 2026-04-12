@@ -75,7 +75,7 @@ export function CameraCapture({
             onClick={() => cameraInputRef.current?.click()}
           >
             <Camera className="h-4 w-4" data-icon="inline-start" />
-            Take Photo
+            {file ? "Take New Photo" : "Take Photo"}
           </Button>
           <Button
             variant="secondary"
@@ -83,7 +83,7 @@ export function CameraCapture({
             onClick={() => uploadInputRef.current?.click()}
           >
             <Upload className="h-4 w-4" data-icon="inline-start" />
-            Upload Image
+            {file ? "Upload New Image" : "Upload Image"}
           </Button>
         </div>
 
