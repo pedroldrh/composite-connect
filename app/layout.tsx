@@ -23,6 +23,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000"
+  ),
   title: "CompositeConnect",
   description:
     "Upload a fraternity composite, extract names, and discover LinkedIn profiles.",
@@ -32,6 +37,19 @@ export const metadata: Metadata = {
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+  },
+  openGraph: {
+    title: "CompositeConnect",
+    description:
+      "Scan a fraternity composite. Find every LinkedIn profile.",
+    siteName: "CompositeConnect",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CompositeConnect",
+    description:
+      "Scan a fraternity composite. Find every LinkedIn profile.",
   },
   appleWebApp: {
     capable: true,
