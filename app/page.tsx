@@ -5,7 +5,7 @@ import type { ExtractedName, PersonResult, AppStep } from "@/types";
 import { analyzeImageQuality } from "@/lib/imageQuality";
 import { runOCR } from "@/lib/ocr";
 import { cleanNames, extractCompositeYear } from "@/lib/nameCleaner";
-import { getSearchProvider, searchProfilesForName } from "@/lib/profileSearch";
+import { getSearchProvider, searchProfilesForName, QuotaExhaustedError } from "@/lib/profileSearch";
 import { classifyCareer } from "@/lib/careerClassifier";
 
 import { UniversitySelect } from "@/components/UniversitySelect";
@@ -30,6 +30,7 @@ export default function Home() {
   const [searchCurrent, setSearchCurrent] = useState(0);
   const [searchTotal, setSearchTotal] = useState(0);
   const [searchCurrentName, setSearchCurrentName] = useState("");
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
 
   // Step 1: University selected
   const handleUniversitySelect = useCallback((uni: string) => {
@@ -72,29 +73,38 @@ export default function Home() {
       const provider = await getSearchProvider();
       const personResults: PersonResult[] = [];
 
+      let hitQuota = false;
       for (let i = 0; i < activeNames.length; i++) {
         const name = activeNames[i].cleanedName;
         setSearchCurrentName(name);
         setSearchCurrent(i);
 
-        const profiles = await searchProfilesForName(provider, name, university, compositeYear);
-        const { category, company } = classifyCareer(profiles);
-        const bestLinkedIn = profiles.find((p) => p.platform === "LinkedIn");
+        try {
+          const profiles = await searchProfilesForName(provider, name, university, compositeYear);
+          const { category, company } = classifyCareer(profiles);
+          const bestLinkedIn = profiles.find((p) => p.platform === "LinkedIn");
 
-        personResults.push({
-          id: activeNames[i].id,
-          name,
-          profiles,
-          bestLinkedIn,
-          company,
-          careerCategory: category,
-          selected: false,
-          noReliableMatch: profiles.length === 0,
-        });
+          personResults.push({
+            id: activeNames[i].id,
+            name,
+            profiles,
+            bestLinkedIn,
+            company,
+            careerCategory: category,
+            selected: false,
+            noReliableMatch: profiles.length === 0,
+          });
+        } catch (err) {
+          if (err instanceof QuotaExhaustedError) {
+            hitQuota = true;
+            break;
+          }
+        }
       }
 
       setSearchCurrent(activeNames.length);
       setResults(personResults);
+      if (hitQuota) setQuotaExhausted(true);
       setStep("results");
     },
     [university, compositeYear]
@@ -133,6 +143,7 @@ export default function Home() {
     setCompositeYear(undefined);
     setExtractedNames([]);
     setResults([]);
+    setQuotaExhausted(false);
   }, []);
 
   return (
@@ -190,6 +201,22 @@ export default function Home() {
         {/* Step 5: Results */}
         {step === "results" && (
           <div className="w-full max-w-2xl">
+            {quotaExhausted && (
+              <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-200">
+                <p className="font-medium">Search limit reached</p>
+                <p className="mt-1 text-amber-200/70">
+                  CompositeConnect has run out of search queries and needs to purchase more.
+                  Please reach out to{" "}
+                  <a
+                    href="mailto:plironderobles@mail.wlu.edu"
+                    className="underline text-amber-200 hover:text-amber-100"
+                  >
+                    plironderobles@mail.wlu.edu
+                  </a>{" "}
+                  and let him know!
+                </p>
+              </div>
+            )}
             <ResultsView
               results={results}
               onToggleSelect={toggleSelect}

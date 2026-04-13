@@ -460,6 +460,14 @@ function getNameExpansions(firstName: string): string[] {
   return NICKNAME_MAP[lower] ?? [];
 }
 
+/** Thrown when the search API quota is exhausted */
+export class QuotaExhaustedError extends Error {
+  constructor() {
+    super("quota_exhausted");
+    this.name = "QuotaExhaustedError";
+  }
+}
+
 /** Run a single search query and return parsed LinkedIn candidates */
 async function runSearchQuery(query: string, name: string, compositeYear?: number, university?: string): Promise<ProfileCandidate[]> {
   try {
@@ -468,11 +476,18 @@ async function runSearchQuery(query: string, name: string, compositeYear?: numbe
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
+
+    if (res.status === 429) {
+      throw new QuotaExhaustedError();
+    }
+
     if (!res.ok) return [];
     const data = await res.json();
+    if (data.error === "quota_exhausted") throw new QuotaExhaustedError();
     if (data.error && data.results?.length === 0) return [];
     return parseSerperResults(data.results ?? [], name, compositeYear, university);
-  } catch {
+  } catch (err) {
+    if (err instanceof QuotaExhaustedError) throw err;
     return [];
   }
 }

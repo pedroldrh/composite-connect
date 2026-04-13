@@ -55,6 +55,15 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const text = await response.text();
       console.error("Serper API error:", response.status, text);
+
+      // Serper returns 429 or 402 when credits are exhausted
+      if (response.status === 429 || response.status === 402) {
+        return NextResponse.json(
+          { error: "quota_exhausted", results: [] },
+          { status: 429 }
+        );
+      }
+
       return NextResponse.json({ error: "Search API error", results: [] }, { status: 200 });
     }
 
