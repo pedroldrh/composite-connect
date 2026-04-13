@@ -44,12 +44,21 @@ export const metadata: Metadata = {
       "Scan a fraternity composite. Find every LinkedIn profile.",
     siteName: "CompositeConnect",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "CompositeConnect logo",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "CompositeConnect",
     description:
       "Scan a fraternity composite. Find every LinkedIn profile.",
+    images: ["/og-image.png"],
   },
   appleWebApp: {
     capable: true,
